@@ -1097,8 +1097,7 @@ static BROTLI_BOOL EncodeData(
         data, mask, literal_context_lut, &s->params,
         &s->hasher_, s->dist_cache_,
         &s->last_insert_len_, &s->commands_[s->num_commands_],
-        &s->num_commands_, &s->num_literals_, &s->backward_references_,
-        &s->back_refs_position_, s->back_refs_size_);
+        &s->num_commands_, &s->num_literals_);
   }
 
   {
