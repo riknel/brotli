@@ -42,6 +42,16 @@ typedef enum {
   BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT = 3
 } BrotliDecoderResult;
 
+typedef struct BlockSplit {
+  size_t num_types;  /* Amount of distinct types */
+  size_t num_blocks;  /* Amount of values in types and length */
+  uint8_t* types;
+  uint32_t* lengths;
+
+  size_t types_alloc_size;
+  size_t lengths_alloc_size;
+} BlockSplit;
+
 /**
  * Template that evaluates items of ::BrotliDecoderErrorCode.
  *
@@ -139,7 +149,12 @@ typedef enum BrotliDecoderParameter {
   /**
    * Flag that determines if "Large Window Brotli" is used.
    */
-  BROTLI_DECODER_PARAM_LARGE_WINDOW = 1
+  BROTLI_DECODER_PARAM_LARGE_WINDOW = 1,
+  /**
+   * Flag that determines if need to collect commands during decompression and
+   * save then to file.
+   */
+  BROTLI_DECODER_PARAM_SAVE_COMMANDS = 2
 } BrotliDecoderParameter;
 
 /**
@@ -203,7 +218,9 @@ BROTLI_DEC_API BrotliDecoderResult BrotliDecoderDecompress(
     size_t encoded_size,
     const uint8_t encoded_buffer[BROTLI_ARRAY_PARAM(encoded_size)],
     size_t* decoded_size,
-    uint8_t decoded_buffer[BROTLI_ARRAY_PARAM(*decoded_size)]);
+    uint8_t decoded_buffer[BROTLI_ARRAY_PARAM(*decoded_size)],
+    BROTLI_BOOL save_commands, size_t* metablocks_count,
+    BlockSplit** literals_block_splits);
 
 /**
  * Decompresses the input stream to the output stream.

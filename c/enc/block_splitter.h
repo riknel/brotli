@@ -19,15 +19,15 @@
 extern "C" {
 #endif
 
-typedef struct BlockSplit {
-  size_t num_types;  /* Amount of distinct types */
-  size_t num_blocks;  /* Amount of values in types and length */
-  uint8_t* types;
-  uint32_t* lengths;
-
-  size_t types_alloc_size;
-  size_t lengths_alloc_size;
-} BlockSplit;
+// typedef struct BlockSplit {
+//   size_t num_types;  /* Amount of distinct types */
+//   size_t num_blocks;  /* Amount of values in types and length */
+//   uint8_t* types;
+//   uint32_t* lengths;
+//
+//   size_t types_alloc_size;
+//   size_t lengths_alloc_size;
+// } BlockSplit;
 
 BROTLI_INTERNAL void BrotliInitBlockSplit(BlockSplit* self);
 BROTLI_INTERNAL void BrotliDestroyBlockSplit(MemoryManager* m,
@@ -42,7 +42,10 @@ BROTLI_INTERNAL void BrotliSplitBlock(MemoryManager* m,
                                       const BrotliEncoderParams* params,
                                       BlockSplit* literal_split,
                                       BlockSplit* insert_and_copy_split,
-                                      BlockSplit* dist_split);
+                                      BlockSplit* dist_split,
+                                      BlockSplit** literals_block_splits,
+                                      size_t metablocks_count,
+                                      size_t* current_metablock);
 
 #if defined(__cplusplus) || defined(c_plusplus)
 }  /* extern "C" */

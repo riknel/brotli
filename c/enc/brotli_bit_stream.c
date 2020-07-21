@@ -11,6 +11,7 @@
 #include "./brotli_bit_stream.h"
 
 #include <string.h>  /* memcpy, memset */
+#include <stdlib.h>
 
 #include "../common/constants.h"
 #include "../common/context.h"
@@ -751,6 +752,7 @@ static BROTLI_INLINE void StoreBlockSwitch(BlockSplitCode* code,
                                            BROTLI_BOOL is_first_block,
                                            size_t* storage_ix,
                                            uint8_t* storage) {
+  // printf("block_len=%u, block_type=%u\n", block_len, block_type);
   size_t typecode = NextBlockTypeCode(&code->type_code_calculator, block_type);
   size_t lencode;
   uint32_t len_nextra;
@@ -916,6 +918,7 @@ static void StoreSymbolWithContext(BlockEncoder* self, size_t symbol,
     uint8_t block_type = self->block_types_[block_ix];
     self->block_len_ = block_len;
     self->entropy_ix_ = (size_t)block_type << context_bits;
+    // printf("StoreSymbolWithContext, %u, %u, block_ix=%zu, num_blocks_=%zu\n", block_len, block_type, block_ix, self->num_blocks_);
     StoreBlockSwitch(&self->block_split_code_, block_len, block_type, 0,
         storage_ix, storage);
   }
@@ -953,7 +956,15 @@ void BrotliStoreMetaBlock(MemoryManager* m,
     const BrotliEncoderParams* params, ContextType literal_context_mode,
     const Command* commands, size_t n_commands, const MetaBlockSplit* mb,
     size_t* storage_ix, uint8_t* storage) {
-
+  // printf("\nBrotliStoreMetaBlock : %zu, %zu\n Types:", mb->literal_split.num_types, mb->literal_split.num_blocks);
+  // for (int i = 0; i < BROTLI_MIN(size_t, mb->literal_split.num_blocks, mb->literal_split.num_blocks); ++i) {
+  //   printf("%u ", mb->literal_split.types[i]);
+  // }
+  // printf("\n Length:");
+  // for (int i = 0; i < BROTLI_MIN(size_t, mb->literal_split.num_blocks, mb->literal_split.num_blocks); ++i) {
+  //   printf("%u ", mb->literal_split.lengths[i]);
+  // }
+  // printf("\n ");
   size_t pos = start_pos;
   size_t i;
   uint32_t num_distance_symbols = params->dist.alphabet_size_max;
@@ -980,20 +991,33 @@ void BrotliStoreMetaBlock(MemoryManager* m,
   InitBlockEncoder(&distance_enc, num_effective_distance_symbols,
       mb->distance_split.num_types, mb->distance_split.types,
       mb->distance_split.lengths, mb->distance_split.num_blocks);
-
+  // printf("----literals----1\n");
   BuildAndStoreBlockSwitchEntropyCodes(&literal_enc, tree, storage_ix, storage);
+  // printf("--------1\n");
   BuildAndStoreBlockSwitchEntropyCodes(&command_enc, tree, storage_ix, storage);
   BuildAndStoreBlockSwitchEntropyCodes(
       &distance_enc, tree, storage_ix, storage);
+
+  // printf("\nliteral_enc : %zu, %zu\n Types:", literal_enc.num_block_types_, literal_enc.num_blocks_);
+  // for (int i = 0; i < BROTLI_MIN(size_t, literal_enc.num_blocks_, literal_enc.num_blocks_); ++i) {
+  //   printf("%u ", literal_enc.block_types_[i]);
+  // }
+  // printf("\n Length:");
+  // for (int i = 0; i < BROTLI_MIN(size_t, literal_enc.num_blocks_, literal_enc.num_blocks_); ++i) {
+  //   printf("%u ", literal_enc.block_lengths_[i]);
+  // }
+  // printf("\n ");
 
   BrotliWriteBits(2, dist->distance_postfix_bits, storage_ix, storage);
   BrotliWriteBits(
       4, dist->num_direct_distance_codes >> dist->distance_postfix_bits,
       storage_ix, storage);
+  // printf("----literals----2\n");
   for (i = 0; i < mb->literal_split.num_types; ++i) {
     BrotliWriteBits(2, literal_context_mode, storage_ix, storage);
   }
-
+  // printf("--------2\n");
+  // printf("----literals----3\n");
   if (mb->literal_context_map_size == 0) {
     StoreTrivialContextMap(mb->literal_histograms_size,
         BROTLI_LITERAL_CONTEXT_BITS, tree, storage_ix, storage);
@@ -1003,6 +1027,7 @@ void BrotliStoreMetaBlock(MemoryManager* m,
         mb->literal_histograms_size, tree, storage_ix, storage);
     if (BROTLI_IS_OOM(m)) return;
   }
+  // printf("--------3\n");
 
   if (mb->distance_context_map_size == 0) {
     StoreTrivialContextMap(mb->distance_histograms_size,
@@ -1013,10 +1038,11 @@ void BrotliStoreMetaBlock(MemoryManager* m,
         mb->distance_histograms_size, tree, storage_ix, storage);
     if (BROTLI_IS_OOM(m)) return;
   }
-
+  // printf("----literals----4\n");
   BuildAndStoreEntropyCodesLiteral(m, &literal_enc, mb->literal_histograms,
       mb->literal_histograms_size, BROTLI_NUM_LITERAL_SYMBOLS, tree,
       storage_ix, storage);
+  // printf("--------4\n");
   if (BROTLI_IS_OOM(m)) return;
   BuildAndStoreEntropyCodesCommand(m, &command_enc, mb->command_histograms,
       mb->command_histograms_size, BROTLI_NUM_COMMAND_SYMBOLS, tree,
@@ -1027,7 +1053,6 @@ void BrotliStoreMetaBlock(MemoryManager* m,
       storage_ix, storage);
   if (BROTLI_IS_OOM(m)) return;
   BROTLI_FREE(m, tree);
-
   for (i = 0; i < n_commands; ++i) {
     const Command cmd = commands[i];
     size_t cmd_code = cmd.cmd_prefix_;
@@ -1035,13 +1060,16 @@ void BrotliStoreMetaBlock(MemoryManager* m,
     StoreCommandExtra(&cmd, storage_ix, storage);
     if (mb->literal_context_map_size == 0) {
       size_t j;
+      // printf("----literals----5\n");
       for (j = cmd.insert_len_; j != 0; --j) {
         StoreSymbol(&literal_enc, input[pos & mask], storage_ix, storage);
         ++pos;
       }
+      // printf("--------5\n");
     } else {
       size_t j;
       for (j = cmd.insert_len_; j != 0; --j) {
+        // printf("----literals----6\n");
         size_t context =
             BROTLI_CONTEXT(prev_byte, prev_byte2, literal_context_lut);
         uint8_t literal = input[pos & mask];
@@ -1051,6 +1079,7 @@ void BrotliStoreMetaBlock(MemoryManager* m,
         prev_byte2 = prev_byte;
         prev_byte = literal;
         ++pos;
+        // printf("----------------6\n");
       }
     }
     pos += CommandCopyLen(&cmd);

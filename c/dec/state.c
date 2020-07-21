@@ -32,6 +32,7 @@ BROTLI_BOOL BrotliDecoderStateInit(BrotliDecoderState* s,
   BrotliInitBitReader(&s->br);
   s->state = BROTLI_STATE_UNINITED;
   s->large_window = 0;
+  s->save_commands = 0;
   s->substate_metablock_header = BROTLI_STATE_METABLOCK_HEADER_NONE;
   s->substate_uncompressed = BROTLI_STATE_UNCOMPRESSED_NONE;
   s->substate_decode_uint8 = BROTLI_STATE_DECODE_UINT8_NONE;
@@ -42,6 +43,11 @@ BROTLI_BOOL BrotliDecoderStateInit(BrotliDecoderState* s,
   s->pos = 0;
   s->rb_roundtrips = 0;
   s->partial_pos_out = 0;
+
+  s->commands_size = 0;
+  s->commands = NULL;
+  s->metablocks_count = 0;
+  s->literals_block_splits = NULL;
 
   s->block_type_trees = NULL;
   s->block_len_trees = NULL;
@@ -115,6 +121,13 @@ void BrotliDecoderStateMetablockBegin(BrotliDecoderState* s) {
   s->insert_copy_hgroup.htrees = NULL;
   s->distance_hgroup.codes = NULL;
   s->distance_hgroup.htrees = NULL;
+  s->literals_block_splits[s->metablocks_count].types = (uint8_t*)BROTLI_DECODER_ALLOC(s, sizeof(uint8_t) * 4000);
+  s->literals_block_splits[s->metablocks_count].lengths = (uint32_t*)BROTLI_DECODER_ALLOC(s, sizeof(uint32_t) * 4000);
+  s->literals_block_splits[s->metablocks_count].num_types = 0;
+  s->literals_block_splits[s->metablocks_count].num_blocks = 0;
+  s->literals_block_splits[s->metablocks_count].types_alloc_size = 4000;
+  s->literals_block_splits[s->metablocks_count].lengths_alloc_size = 4000;
+  s->metablocks_count++;
 }
 
 void BrotliDecoderStateCleanupAfterMetablock(BrotliDecoderState* s) {

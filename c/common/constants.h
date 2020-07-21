@@ -19,7 +19,8 @@
 #define BROTLI_CONTEXT_MAP_MAX_RLE 16
 
 /* Specification: 2. Compressed representation overview */
-#define BROTLI_MAX_NUMBER_OF_BLOCK_TYPES 256
+// #define BROTLI_MAX_NUMBER_OF_BLOCK_TYPES 256
+#define BROTLI_MAX_NUMBER_OF_BLOCK_TYPES 400
 
 /* Specification: 3.3. Alphabet sizes: insert-and-copy length */
 #define BROTLI_NUM_LITERAL_SYMBOLS 256

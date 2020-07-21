@@ -8,6 +8,7 @@
 
 #include <stdlib.h>  /* free, malloc */
 #include <string.h>  /* memcpy, memset */
+#include <stdio.h> /* fprintf */
 
 #include "../common/constants.h"
 #include "../common/context.h"
@@ -58,6 +59,34 @@ static const uint8_t kCodeLengthPrefixValue[16] = {
   0, 4, 3, 2, 0, 4, 3, 1, 0, 4, 3, 2, 0, 4, 3, 5,
 };
 
+BROTLI_BOOL SaveCommandsToFile(BrotliDecoderState* s) {
+    FILE *fptr = fopen("backward_references.txt", "w");
+    if (fptr == NULL) {
+        fclose(fptr);
+        return BROTLI_FALSE;
+    }
+    // printf("SaveCommandsToFile\n");
+    fprintf(fptr, "%zu\n", s->commands_size);
+    /*Commented code is in case we want to save only backward references (not references to static dict)*/
+    // size_t back_ref_cnt = 0;
+    // for (int i = 0; i < s->commands_size; ++i) {
+    //     // fprintf(fptr, "%d %d %d %d\n", s->commands[i].position, s->commands[i].copy_len, s->commands[i].distance, s->commands[i].max_distance);
+    //     if (s->commands[i].distance < s->commands[i].max_distance) {
+    //       back_ref_cnt++;
+    //     }
+    // }
+    // fprintf(fptr, "%zu\n", back_ref_cnt);
+    for (int i = 0; i < s->commands_size; ++i) {
+        // printf("%d %d %d\n", s->commands[i].position, s->commands[i].copy_len, s->commands[i].distance);
+        fprintf(fptr, "%d %d %d %d\n", s->commands[i].position, s->commands[i].copy_len, s->commands[i].distance, s->commands[i].max_distance);
+        // if (s->commands[i].distance < s->commands[i].max_distance) {
+        //   fprintf(fptr, "%d %d %d\n", s->commands[i].position, s->commands[i].copy_len, s->commands[i].distance);
+        // }
+    }
+    fclose(fptr);
+    return BROTLI_TRUE;
+}
+
 BROTLI_BOOL BrotliDecoderSetParameter(
     BrotliDecoderState* state, BrotliDecoderParameter p, uint32_t value) {
   if (state->state != BROTLI_STATE_UNINITED) return BROTLI_FALSE;
@@ -68,6 +97,10 @@ BROTLI_BOOL BrotliDecoderSetParameter(
 
     case BROTLI_DECODER_PARAM_LARGE_WINDOW:
       state->large_window = TO_BROTLI_BOOL(!!value);
+      return BROTLI_TRUE;
+
+    case BROTLI_DECODER_PARAM_SAVE_COMMANDS:
+      state->save_commands = TO_BROTLI_BOOL(!!value);
       return BROTLI_TRUE;
 
     default: return BROTLI_FALSE;
@@ -113,6 +146,7 @@ void BrotliDecoderDestroyInstance(BrotliDecoderState* state) {
 /* Saves error code and converts it to BrotliDecoderResult. */
 static BROTLI_NOINLINE BrotliDecoderResult SaveErrorCode(
     BrotliDecoderState* s, BrotliDecoderErrorCode e) {
+  printf("BrotliDecoderErrorCode=%d\n", e);
   s->error_code = (int)e;
   switch (e) {
     case BROTLI_DECODER_SUCCESS:
@@ -125,6 +159,7 @@ static BROTLI_NOINLINE BrotliDecoderResult SaveErrorCode(
       return BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT;
 
     default:
+
       return BROTLI_DECODER_RESULT_ERROR;
   }
 }
@@ -1198,6 +1233,12 @@ static BROTLI_INLINE BROTLI_BOOL DecodeLiteralBlockSwitchInternal(
   if (!DecodeBlockTypeAndLength(safe, s, 0)) {
     return BROTLI_FALSE;
   }
+  size_t num_blocks = s->literals_block_splits[s->metablocks_count - 1].num_blocks;
+  s->literals_block_splits[s->metablocks_count - 1].types[num_blocks] = s->block_type_rb[0 * 2 + 1];
+  s->literals_block_splits[s->metablocks_count - 1].lengths[num_blocks] = s->block_length[0];
+  s->literals_block_splits[s->metablocks_count - 1].num_blocks++;
+  s->literals_block_splits[s->metablocks_count - 1].num_types = BROTLI_MAX(size_t, s->literals_block_splits[s->metablocks_count - 1].num_types, (size_t)s->block_type_rb[0 * 2 + 1]);
+  // printf("block_length=%d, block_type_rb=%u, %u\n", s->block_length[0], s->block_type_rb[0 * 2], s->block_type_rb[0 * 2 + 1]);
   PrepareLiteralDecoding(s);
   return BROTLI_TRUE;
 }
@@ -1736,7 +1777,6 @@ static BROTLI_INLINE BrotliDecoderErrorCode ProcessCommandsInternal(
   int i = s->loop_counter;
   BrotliDecoderErrorCode result = BROTLI_DECODER_SUCCESS;
   BrotliBitReader* br = &s->br;
-
   if (!CheckInputAmount(safe, br, 28)) {
     result = BROTLI_DECODER_NEEDS_MORE_INPUT;
     goto saveStateAndReturn;
@@ -1775,6 +1815,10 @@ CommandBegin:
   BROTLI_SAFE(ReadCommand(s, br, &i));
   BROTLI_LOG(("[ProcessCommandsInternal] pos = %d insert = %d copy = %d\n",
               pos, i, s->copy_length));
+  if (s->save_commands) {
+    s->commands[s->commands_size].insert_len = i;
+    s->commands[s->commands_size].copy_len = s->copy_length;
+  }
   if (i == 0) {
     goto CommandPostDecodeLiterals;
   }
@@ -1888,6 +1932,12 @@ CommandPostDecodeLiterals:
   if (s->max_distance != s->max_backward_distance) {
     s->max_distance =
         (pos < s->max_backward_distance) ? pos : s->max_backward_distance;
+  }
+  if (s->save_commands) {
+    s->commands[s->commands_size].distance = s->distance_code;
+    s->commands[s->commands_size].position = pos;
+    s->commands[s->commands_size].max_distance = s->max_distance;
+    ++s->commands_size;
   }
   i = s->copy_length;
   /* Apply copy of LZ77 back-reference, or static dictionary reference if
@@ -2033,7 +2083,8 @@ static BROTLI_NOINLINE BrotliDecoderErrorCode SafeProcessCommands(
 
 BrotliDecoderResult BrotliDecoderDecompress(
     size_t encoded_size, const uint8_t* encoded_buffer, size_t* decoded_size,
-    uint8_t* decoded_buffer) {
+    uint8_t* decoded_buffer, BROTLI_BOOL save_commands, size_t* metablocks_count,
+    BlockSplit** literals_block_splits) {
   BrotliDecoderState s;
   BrotliDecoderResult result;
   size_t total_out = 0;
@@ -2044,6 +2095,7 @@ BrotliDecoderResult BrotliDecoderDecompress(
   if (!BrotliDecoderStateInit(&s, 0, 0, 0)) {
     return BROTLI_DECODER_RESULT_ERROR;
   }
+  s.save_commands = save_commands;
   result = BrotliDecoderDecompressStream(
       &s, &available_in, &next_in, &available_out, &next_out, &total_out);
   *decoded_size = total_out;
@@ -2051,6 +2103,20 @@ BrotliDecoderResult BrotliDecoderDecompress(
   if (result != BROTLI_DECODER_RESULT_SUCCESS) {
     result = BROTLI_DECODER_RESULT_ERROR;
   }
+  if (s.save_commands) {
+    SaveCommandsToFile(&s);
+  }
+  // printf("Decoder:metablocks_count=%zu\n", s.metablocks_count);
+  for (int i = 0; i < s.metablocks_count; ++i) {
+    s.literals_block_splits[i].num_types++;
+    // printf("%zu, %zu\n", s.literals_block_splits[i].num_types, s.literals_block_splits[i].num_blocks);
+    // printf("%u, %u, %u\n", s.literals_block_splits[i].lengths[0], s.literals_block_splits[i].lengths[1], s.literals_block_splits[i].lengths[2]);
+  }
+  // printf("Decoder:num_blocks=%zu\n", s.literals_block_splits[0].num_blocks);
+  *literals_block_splits = s.literals_block_splits;
+  *metablocks_count = s.metablocks_count;
+  // printf("Decoder:Finish\n");
+  // printf("result=%d", result);
   return result;
 }
 
@@ -2070,6 +2136,11 @@ BrotliDecoderResult BrotliDecoderDecompressStream(
     size_t* available_out, uint8_t** next_out, size_t* total_out) {
   BrotliDecoderErrorCode result = BROTLI_DECODER_SUCCESS;
   BrotliBitReader* br = &s->br;
+  /* Will save a commands here to use for the recompression*/
+  if (s->save_commands && !s->commands) {
+    s->commands = (Command*)BROTLI_DECODER_ALLOC(s, sizeof(Command) * (int)((float)*available_in));
+  }
+  s->literals_block_splits = (BlockSplit*)BROTLI_DECODER_ALLOC(s, sizeof(BlockSplit) * 200);
   /* Ensure that |total_out| is set, even if no data will ever be pushed out. */
   if (total_out) {
     *total_out = s->partial_pos_out;
@@ -2216,6 +2287,7 @@ BrotliDecoderResult BrotliDecoderDecompressStream(
 
       case BROTLI_STATE_METABLOCK_BEGIN:
         BrotliDecoderStateMetablockBegin(s);
+        // printf("BrotliDecoderStateMetablockBegin\n");
         BROTLI_LOG_UINT(s->pos);
         s->state = BROTLI_STATE_METABLOCK_HEADER;
       /* Fall through. */
@@ -2311,6 +2383,13 @@ BrotliDecoderResult BrotliDecoderDecompressStream(
             &s->block_len_trees[tree_offset], br)) {
           result = BROTLI_DECODER_NEEDS_MORE_INPUT;
           break;
+        }
+        /* if block split for literals save a block type and length */
+        if (s->loop_counter == 0) {
+          s->literals_block_splits[s->metablocks_count - 1].types[0] = 0;
+          s->literals_block_splits[s->metablocks_count - 1].lengths[0] = s->block_length[s->loop_counter];
+          s->literals_block_splits[s->metablocks_count - 1].num_blocks++;
+          // printf("block_length=%d, loop_counter=%d\n", s->block_length[s->loop_counter], s->loop_counter);
         }
         BROTLI_LOG_UINT(s->block_length[s->loop_counter]);
         s->loop_counter++;
