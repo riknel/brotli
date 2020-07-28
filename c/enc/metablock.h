@@ -81,9 +81,6 @@ BROTLI_INTERNAL void BrotliBuildMetaBlock(MemoryManager* m,
                                           Command* cmds,
                                           size_t num_commands,
                                           ContextType literal_context_mode,
-                                          BlockSplit** literals_block_splits,
-                                          size_t metablocks_count,
-                                          size_t* current_metablock,
                                           MetaBlockSplit* mb);
 
 /* Uses a fast greedy block splitter that tries to merge current block with the
@@ -93,10 +90,7 @@ BROTLI_INTERNAL void BrotliBuildMetaBlockGreedy(
     MemoryManager* m, const uint8_t* ringbuffer, size_t pos, size_t mask,
     uint8_t prev_byte, uint8_t prev_byte2, ContextLut literal_context_lut,
     size_t num_contexts, const uint32_t* static_context_map,
-    const Command* commands, size_t n_commands, MetaBlockSplit* mb,
-    BlockSplit** literals_block_splits,
-    size_t metablocks_count,
-    size_t* current_metablock);
+    const Command* commands, size_t n_commands, MetaBlockSplit* mb);
 
 BROTLI_INTERNAL void BrotliOptimizeHistograms(uint32_t num_distance_codes,
                                               MetaBlockSplit* mb);

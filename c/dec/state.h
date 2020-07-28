@@ -16,7 +16,6 @@
 #include <brotli/types.h>
 #include "./bit_reader.h"
 #include "./huffman.h"
-#include "../include/brotli/decode.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
@@ -234,24 +233,6 @@ typedef struct BrotliMetablockBodyArena {
   uint32_t dist_offset[544];
 } BrotliMetablockBodyArena;
 
-typedef struct Command {
-    int insert_len;
-    int copy_len;
-    int distance;
-    int position;
-    int max_distance;
-} Command;
-
-// typedef struct BlockSplit {
-//   size_t num_types;  /* Amount of distinct types */
-//   size_t num_blocks;  /* Amount of values in types and length */
-//   uint8_t* types;
-//   uint32_t* lengths;
-//
-//   size_t types_alloc_size;
-//   size_t lengths_alloc_size;
-// } BlockSplit;
-
 struct BrotliDecoderStateStruct {
   BrotliRunningState state;
 
@@ -263,12 +244,6 @@ struct BrotliDecoderStateStruct {
   brotli_alloc_func alloc_func;
   brotli_free_func free_func;
   void* memory_manager_opaque;
-
-  Command* commands;
-  size_t commands_size;
-
-  BlockSplit* literals_block_splits;
-  size_t metablocks_count;
 
   /* Temporary storage for remaining input. Brotli stream format is designed in
      a way, that 64 bits are enough to make progress in decoding. */
@@ -343,7 +318,6 @@ struct BrotliDecoderStateStruct {
   unsigned int should_wrap_ringbuffer : 1;
   unsigned int canny_ringbuffer_allocation : 1;
   unsigned int large_window : 1;
-  unsigned int save_commands : 1;
   unsigned int size_nibbles : 8;
   uint32_t window_bits;
 

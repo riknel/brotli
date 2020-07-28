@@ -394,11 +394,11 @@ static void FN(SplitByteVector)(MemoryManager* m,
   if (BROTLI_IS_OOM(m) || BROTLI_IS_NULL(histograms)) return;
   /* Find good entropy codes. */
   FN(InitialEntropyCodes)(data, length,
-                          BROTLI_MIN(size_t, sampling_stride_length, length),
+                          sampling_stride_length,
                           num_histograms, histograms);
-  // FN(RefineEntropyCodes)(data, length,
-  //                        BROTLI_MIN(size_t, sampling_stride_length, length),
-  //                        num_histograms, histograms);
+  FN(RefineEntropyCodes)(data, length,
+                         sampling_stride_length,
+                         num_histograms, histograms);
   {
     /* Find a good path through literals with the good entropy codes. */
     uint8_t* block_ids = BROTLI_ALLOC(m, uint8_t, length);
@@ -408,8 +408,7 @@ static void FN(SplitByteVector)(MemoryManager* m,
     double* cost = BROTLI_ALLOC(m, double, num_histograms);
     uint8_t* switch_signal = BROTLI_ALLOC(m, uint8_t, length * bitmaplen);
     uint16_t* new_id = BROTLI_ALLOC(m, uint16_t, num_histograms);
-    // const size_t iters = params->quality < HQ_ZOPFLIFICATION_QUALITY ? 3 : 10;
-    const size_t iters = 1;
+    const size_t iters = params->quality < HQ_ZOPFLIFICATION_QUALITY ? 3 : 10;
     size_t i;
     if (BROTLI_IS_OOM(m) || BROTLI_IS_NULL(block_ids) ||
         BROTLI_IS_NULL(insert_cost) || BROTLI_IS_NULL(cost) ||

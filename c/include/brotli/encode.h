@@ -14,47 +14,10 @@
 
 #include <brotli/port.h>
 #include <brotli/types.h>
-#include "decode.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
 #endif
-
-//
-// static size_t kMaxLiteralHistograms = 40;
-// // static const size_t kMaxCommandHistograms = 50;
-// static size_t kMaxCommandHistograms = 1;
-// static double kLiteralBlockSwitchCost = 28.1;
-// static double kCommandBlockSwitchCost = 13.5;
-// static double kDistanceBlockSwitchCost = 14.6;
-// static size_t kLiteralStrideLength = 70;
-// // static const size_t kCommandStrideLength = 40;
-// static size_t kCommandStrideLength = 700;
-// static size_t kSymbolsPerLiteralHistogram = 544;
-// // static const size_t kSymbolsPerCommandHistogram = 530;
-// static size_t kSymbolsPerCommandHistogram = 1024;
-// // static const size_t kSymbolsPerDistanceHistogram = 544;
-// static size_t kSymbolsPerDistanceHistogram = 1024;
-// // static const size_t kMinLengthForBlockSplitting = 128;
-// static size_t kMinLengthForBlockSplitting = 300;
-// // static const size_t kIterMulForRefining = 2;
-// static size_t kIterMulForRefining = 1;
-// // static const size_t kMinItersForRefining = 100;
-// static size_t kMinItersForRefining = 100;
-
-static const size_t kMaxLiteralHistograms = 20;
-static const size_t kMaxCommandHistograms = 1;
-static const double kLiteralBlockSwitchCost = 28.1;
-static const double kCommandBlockSwitchCost = 13.5;
-static const double kDistanceBlockSwitchCost = 14.6;
-static const size_t kLiteralStrideLength = 70;
-static const size_t kCommandStrideLength = 40;
-static const size_t kSymbolsPerLiteralHistogram = 544;
-static const size_t kSymbolsPerCommandHistogram = 530;
-static const size_t kSymbolsPerDistanceHistogram = 544;
-static const size_t kMinLengthForBlockSplitting = 128;
-static const size_t kIterMulForRefining = 2;
-static const size_t kMinItersForRefining = 100;
 
 /** Minimal value for ::BROTLI_PARAM_LGWIN parameter. */
 #define BROTLI_MIN_WINDOW_BITS 10
@@ -92,13 +55,6 @@ typedef enum BrotliEncoderMode {
   /** Compression mode used in WOFF 2.0. */
   BROTLI_MODE_FONT = 2
 } BrotliEncoderMode;
-
-typedef struct BackwardReference {
-    int position;
-    int copy_len;
-    int distance;
-    int max_distance;
-} BackwardReference;
 
 /** Default value for ::BROTLI_PARAM_QUALITY parameter. */
 #define BROTLI_DEFAULT_QUALITY 11
@@ -357,10 +313,7 @@ BROTLI_ENC_API BROTLI_BOOL BrotliEncoderCompress(
     int quality, int lgwin, BrotliEncoderMode mode, size_t input_size,
     const uint8_t input_buffer[BROTLI_ARRAY_PARAM(input_size)],
     size_t* encoded_size,
-    uint8_t encoded_buffer[BROTLI_ARRAY_PARAM(*encoded_size)],
-    BackwardReference** backward_references,
-    size_t back_refs_size, BlockSplit** literals_block_splits,
-    size_t metablocks_count);
+    uint8_t encoded_buffer[BROTLI_ARRAY_PARAM(*encoded_size)]);
 
 /**
  * Compresses input stream to output stream.

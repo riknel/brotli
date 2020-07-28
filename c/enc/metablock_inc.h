@@ -46,24 +46,17 @@ static void FN(InitBlockSplitter)(
     MemoryManager* m, FN(BlockSplitter)* self, size_t alphabet_size,
     size_t min_block_size, double split_threshold, size_t num_symbols,
     BlockSplit* split, HistogramType** histograms, size_t* histograms_size) {
-  // size_t max_num_blocks = num_symbols / min_block_size + 1;
-  size_t max_num_blocks = 512;
+  size_t max_num_blocks = num_symbols / min_block_size + 1;
   /* We have to allocate one more histogram than the maximum number of block
      types for the current histogram when the meta-block is too big. */
   size_t max_num_types =
       BROTLI_MIN(size_t, max_num_blocks, BROTLI_MAX_NUMBER_OF_BLOCK_TYPES + 1);
-  printf("max_num_types=%zu\n", max_num_types);
   self->alphabet_size_ = alphabet_size;
   self->min_block_size_ = min_block_size;
   self->split_threshold_ = split_threshold;
   self->num_blocks_ = 0;
   self->split_ = split;
   self->histograms_size_ = histograms_size;
-  // if (metablocks_count != 0 && (*literals_block_splits)[*current_metablock].num_blocks != 0) {
-  //   self->target_block_size_ =
-  // } else {
-  //   self->target_block_size_ = min_block_size;
-  // }
   self->target_block_size_ = min_block_size;
   self->block_size_ = 0;
   self->curr_histogram_ix_ = 0;
@@ -128,11 +121,9 @@ static void FN(BlockSplitterFinishBlock)(
     if (split->num_types < BROTLI_MAX_NUMBER_OF_BLOCK_TYPES &&
         diff[0] > self->split_threshold_ &&
         diff[1] > self->split_threshold_) {
-    // if (BROTLI_TRUE) {
       /* Create new block. */
       split->lengths[self->num_blocks_] = (uint32_t)self->block_size_;
       split->types[self->num_blocks_] = (uint8_t)split->num_types;
-      printf("histograms_size_=%zu, curr_histogram_ix_=%zu, num_types=%u\n", self->histograms_size_, self->curr_histogram_ix_, (uint8_t)split->num_types);
       self->last_histogram_ix_[1] = self->last_histogram_ix_[0];
       self->last_histogram_ix_[0] = (uint8_t)split->num_types;
       last_entropy[1] = last_entropy[0];
@@ -144,14 +135,11 @@ static void FN(BlockSplitterFinishBlock)(
         FN(HistogramClear)(&histograms[self->curr_histogram_ix_]);
       self->block_size_ = 0;
       self->merge_last_count_ = 0;
-
       self->target_block_size_ = self->min_block_size_;
-
     } else if (diff[1] < diff[0] - 20.0) {
       /* Combine this block with second last block. */
       split->lengths[self->num_blocks_] = (uint32_t)self->block_size_;
       split->types[self->num_blocks_] = split->types[self->num_blocks_ - 2];
-      printf("histograms_size_=%zu, curr_histogram_ix_=%zu, num_types=%u\n", self->histograms_size_, self->curr_histogram_ix_, split->types[self->num_blocks_ - 2]);
       BROTLI_SWAP(size_t, self->last_histogram_ix_, 0, 1);
       histograms[self->last_histogram_ix_[0]] = combined_histo[1];
       last_entropy[1] = last_entropy[0];
@@ -164,7 +152,6 @@ static void FN(BlockSplitterFinishBlock)(
     } else {
       /* Combine this block with last block. */
       split->lengths[self->num_blocks_ - 1] += (uint32_t)self->block_size_;
-      printf("histograms_size_=%zu, curr_histogram_ix_=%zu, num_types=%u\n", self->histograms_size_, self->curr_histogram_ix_, split->types[self->num_blocks_ - 1]);
       histograms[self->last_histogram_ix_[0]] = combined_histo[0];
       last_entropy[0] = combined_entropy[0];
       if (split->num_types == 1) {
@@ -183,84 +170,6 @@ static void FN(BlockSplitterFinishBlock)(
   }
 }
 
-
-
-// static void StoredBlockSplitterFinishBlockLiterals(
-//     FN(BlockSplitter)* self, BROTLI_BOOL is_final,
-//     BlockSplit** literals_block_splits,
-//     size_t metablocks_count,
-//     size_t* current_metablock) {
-//   BlockSplit* split = self->split_;
-//   double* last_entropy = self->last_entropy_;
-//   HistogramType* histograms = self->histograms_;
-//   self->block_size_ =
-//       BROTLI_MAX(size_t, self->block_size_, self->min_block_size_);
-//   if (self->num_blocks_ == 0) {
-//     /* Create first block. */
-//     split->lengths[0] = (uint32_t)self->block_size_;
-//     split->types[0] = 0;
-//     last_entropy[0] =
-//         BitsEntropy(histograms[0].data_, self->alphabet_size_);
-//     last_entropy[1] = last_entropy[0];
-//     ++self->num_blocks_;
-//     ++split->num_types;
-//     ++self->curr_histogram_ix_;
-//     if (self->curr_histogram_ix_ < *self->histograms_size_)
-//       FN(HistogramClear)(&histograms[self->curr_histogram_ix_]);
-//     self->block_size_ = 0;
-//   } else if (self->block_size_ > 0) {
-//     double entropy = BitsEntropy(histograms[self->curr_histogram_ix_].data_,
-//                                  self->alphabet_size_);
-//     HistogramType combined_histo[2];
-//     double combined_entropy[2];
-//     double diff[2];
-//     size_t j;
-//     for (j = 0; j < 2; ++j) {
-//       size_t last_histogram_ix = self->last_histogram_ix_[j];
-//       combined_histo[j] = histograms[self->curr_histogram_ix_];
-//       FN(HistogramAddHistogram)(&combined_histo[j],
-//           &histograms[last_histogram_ix]);
-//       combined_entropy[j] = BitsEntropy(
-//           &combined_histo[j].data_[0], self->alphabet_size_);
-//       diff[j] = combined_entropy[j] - entropy - last_entropy[j];
-//     }
-//
-//     // if (split->num_types < BROTLI_MAX_NUMBER_OF_BLOCK_TYPES &&
-//     //     diff[0] > self->split_threshold_ &&
-//     //     diff[1] > self->split_threshold_) {
-//     if (BROTLI_TRUE) {
-//       /* Create new block. */
-//       split->lengths[self->num_blocks_] = (uint32_t)self->block_size_;
-//       split->types[self->num_blocks_] = (uint8_t)split->num_types;
-//       self->last_histogram_ix_[1] = self->last_histogram_ix_[0];
-//       self->last_histogram_ix_[0] = (uint8_t)split->num_types;
-//       last_entropy[1] = last_entropy[0];
-//       last_entropy[0] = entropy;
-//       ++self->num_blocks_;
-//       ++split->num_types;
-//       ++self->curr_histogram_ix_;
-//       if (self->curr_histogram_ix_ < *self->histograms_size_)
-//         FN(HistogramClear)(&histograms[self->curr_histogram_ix_]);
-//       self->block_size_ = 0;
-//       self->merge_last_count_ = 0;
-//
-//       if (metablocks_count != 0 && *current_metablock < metablocks_count && (*literals_block_splits)[*current_metablock].num_blocks > self->num_blocks_) {
-//         self->target_block_size_ = (*literals_block_splits)[*current_metablock].lengths[self->num_blocks_];
-//         // printf("target_block_size_=%zu, block_size_=%zu, num_blocks_=%zu/%zu\n", lit_blocks.plain.target_block_size_, lit_blocks.plain.block_size_, lit_blocks.plain.num_blocks_, (*literals_block_splits)[*current_metablock].num_blocks);
-//         printf("choosed lengths=%u\n", (*literals_block_splits)[*current_metablock].lengths[self->num_blocks_]);
-//       } else {
-//         self->target_block_size_ = self->min_block_size_;
-//       }
-//       // self->target_block_size_ = self->min_block_size_;
-//
-//     }
-//   }
-//   if (is_final) {
-//     *self->histograms_size_ = split->num_types;
-//     split->num_blocks = self->num_blocks_;
-//   }
-// }
-
 /* Adds the next symbol to the current histogram. When the current histogram
    reaches the target size, decides on merging the block. */
 static void FN(BlockSplitterAddSymbol)(FN(BlockSplitter)* self, size_t symbol) {
@@ -270,16 +179,5 @@ static void FN(BlockSplitterAddSymbol)(FN(BlockSplitter)* self, size_t symbol) {
     FN(BlockSplitterFinishBlock)(self, /* is_final = */ BROTLI_FALSE);
   }
 }
-
-// static void StoredBlockSplitterAddSymbolLiterals(FN(BlockSplitter)* self, size_t symbol,
-//                                               BlockSplit** literals_block_splits,
-//                                               size_t metablocks_count,
-//                                               size_t* current_metablock) {
-//   FN(HistogramAdd)(&self->histograms_[self->curr_histogram_ix_], symbol);
-//   ++self->block_size_;
-//   if (self->block_size_ == self->target_block_size_) {
-//     StoredBlockSplitterFinishBlockLiterals(self, /* is_final = */ BROTLI_FALSE, literals_block_splits, metablocks_count, current_metablock);
-//   }
-// }
 
 #undef HistogramType
